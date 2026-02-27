@@ -1,0 +1,67 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aistockmanager
+    env_file:
+      - .env
+    environment:
+      TZ: America/New_York
+      MARKETDATA_CACHE_ONLY: "1"
+    ports:
+      - "127.0.0.1:8601:8501"
+    volumes:
+      - ./.cache:/app/.cache
+      - ./app/core/portfolio/portfolio.json:/app/app/core/portfolio/portfolio.json
+    labels:
+      caddy: https://aistock.localhost
+      caddy.tls: internal
+      caddy.reverse_proxy: "{{upstreams 8501}}"
+    restart: unless-stopped
+
+  graph-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aistockmanager-graph-api
+    env_file:
+      - .env
+    environment:
+      TZ: America/New_York
+      MARKETDATA_CACHE_ONLY: "0"
+    ports:
+      - "127.0.0.1:8602:8701"
+    volumes:
+      - ./.cache:/app/.cache
+      - ./app/core/portfolio/portfolio.json:/app/app/core/portfolio/portfolio.json
+    command: ["python3", "-m", "uvicorn", "app.api.graph_api:app", "--host", "0.0.0.0", "--port", "8701"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8701/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    labels:
+      caddy: https://api.aistock.localhost
+      caddy.tls: internal
+      caddy.reverse_proxy: "{{upstreams 8701}}"
+    restart: unless-stopped
+
+  prewarm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aistockmanager-prewarm
+    env_file:
+      - .env
+    environment:
+      TZ: America/New_York
+      MARKETDATA_CACHE_ONLY: "0"
+    volumes:
+      - ./.cache:/app/.cache
+      - ./app/core/portfolio/portfolio.json:/app/app/core/portfolio/portfolio.json
+    command: ["python3", "scripts/prewarm_worker.py"]
+    healthcheck:
+      disable: true
+    restart: unless-stopped

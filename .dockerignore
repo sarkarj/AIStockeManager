@@ -1,0 +1,35 @@
+.git
+.github
+.gitignore
+.DS_Store
+
+# local environments
+.venv
+venv
+env
+
+# Python cache/artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+.coverage.*
+htmlcov
+
+# local runtime data/secrets
+.env
+.env.*
+.streamlit/secrets.toml
+.cache
+*.log
+
+# personal portfolio data
+app/core/portfolio/portfolio.json
+app/core/portfolio/portfolio.json.tmp
+
+# optional docs/tests not required in runtime image
+docs

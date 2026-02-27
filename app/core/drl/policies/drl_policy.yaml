@@ -1,0 +1,332 @@
+policy:
+  id: "drl_v1_minimal"
+  version: "1.0.0"
+  description: "Minimal DRL policy tuned for Supertrend/EMA50/SMA200/RSI/MACD/Stoch/ADX/VROC/ATR%"
+  default_profile: "swing"
+
+inputs:
+  required_metrics:
+    - price_last
+    - ema_50
+    - sma_200
+    - rsi_14
+    - macd
+    - macd_signal
+    - stoch_k
+    - adx_14
+    - vroc_14
+    - atr_pct
+  required_flags:
+    - supertrend_dir_1D
+    - supertrend_dir_1W
+
+normalization:
+  zones:
+    rsi_14:
+      type: range
+      ranges:
+        - name: OVERSOLD
+          min: null
+          max: 30
+        - name: WEAK
+          min: 30
+          max: 45
+        - name: NEUTRAL
+          min: 45
+          max: 65
+        - name: OVERBOUGHT
+          min: 65
+          max: null
+    stoch_k:
+      type: range
+      ranges:
+        - name: OVERSOLD
+          min: null
+          max: 15
+        - name: NEUTRAL
+          min: 15
+          max: 90
+        - name: OVERBOUGHT
+          min: 90
+          max: null
+    adx_14:
+      type: range
+      ranges:
+        - name: WEAK
+          min: null
+          max: 18
+        - name: FORMING
+          min: 18
+          max: 25
+        - name: STRONG
+          min: 25
+          max: 35
+        - name: EXTREME
+          min: 35
+          max: null
+    vroc_14:
+      type: range
+      ranges:
+        - name: FALLING
+          min: null
+          max: -10
+        - name: FLAT
+          min: -10
+          max: 20
+        - name: SURGING
+          min: 20
+          max: null
+    atr_pct:
+      type: range
+      ranges:
+        - name: LOW
+          min: null
+          max: 2.5
+        - name: MED
+          min: 2.5
+          max: 4.0
+        - name: HIGH
+          min: 4.0
+          max: 6.0
+        - name: EXTREME
+          min: 6.0
+          max: null
+
+  derived_features:
+    - name: price_vs_ema50
+      expression: "price_last > ema_50 ? 'ABOVE' : 'BELOW'"
+      output_type: enum
+      enum_values: ["ABOVE", "BELOW"]
+    - name: price_vs_sma200
+      expression: "price_last > sma_200 ? 'ABOVE' : 'BELOW'"
+      output_type: enum
+      enum_values: ["ABOVE", "BELOW"]
+    - name: macd_state
+      expression: "macd > macd_signal ? 'BULL' : 'BEAR'"
+      output_type: enum
+      enum_values: ["BULL", "BEAR"]
+
+states:
+  regime:
+    timeframes: ["1D", "1W"]
+    components:
+      - name: supertrend
+        feature: "supertrend_dir_${tf}"
+        bullish_when: "value == 'BULL'"
+        bearish_when: "value == 'BEAR'"
+        weight: 2
+      - name: ema50
+        feature: "price_vs_ema50"
+        bullish_when: "value == 'ABOVE'"
+        bearish_when: "value == 'BELOW'"
+        weight: 1
+      - name: sma200
+        feature: "price_vs_sma200"
+        bullish_when: "value == 'ABOVE'"
+        bearish_when: "value == 'BELOW'"
+        weight: 1
+    voting:
+      bullish_min_votes: 3
+      bearish_min_votes: 3
+      tie_state: "NEUTRAL"
+
+scoring:
+  components:
+    - name: regime_score
+      contributions:
+        - name: st_bull
+          when: "supertrend_dir_1D == 'BULL'"
+          score: 2
+        - name: st_bear
+          when: "supertrend_dir_1D == 'BEAR'"
+          score: -2
+        - name: ema_above
+          when: "price_vs_ema50 == 'ABOVE'"
+          score: 1
+        - name: ema_below
+          when: "price_vs_ema50 == 'BELOW'"
+          score: -1
+        - name: sma_above
+          when: "price_vs_sma200 == 'ABOVE'"
+          score: 1
+        - name: sma_below
+          when: "price_vs_sma200 == 'BELOW'"
+          score: -1
+
+    - name: momentum_score
+      contributions:
+        - name: macd_bull
+          when: "macd_state == 'BULL'"
+          score: 2
+        - name: macd_bear
+          when: "macd_state == 'BEAR'"
+          score: -2
+        - name: rsi_oversold
+          when: "rsi_14_zone == 'OVERSOLD'"
+          score: -1
+        - name: rsi_overbought
+          when: "rsi_14_zone == 'OVERBOUGHT'"
+          score: 1
+        - name: stoch_oversold
+          when: "stoch_k_zone == 'OVERSOLD'"
+          score: -1
+        - name: stoch_overbought
+          when: "stoch_k_zone == 'OVERBOUGHT'"
+          score: 1
+
+    - name: participation_score
+      contributions:
+        - name: vroc_surging
+          when: "vroc_14_zone == 'SURGING'"
+          score: 1
+        - name: vroc_falling
+          when: "vroc_14_zone == 'FALLING'"
+          score: -1
+
+  multipliers:
+    - name: adx_strength
+      metric: adx_14
+      bands:
+        - min: null
+          max: 18
+          multiplier: 0.8
+        - min: 18
+          max: 25
+          multiplier: 1.0
+        - min: 25
+          max: 35
+          multiplier: 1.2
+        - min: 35
+          max: null
+          multiplier: 1.35
+
+  penalties:
+    - name: atr_risk
+      metric: atr_pct
+      bands:
+        - min: null
+          max: 2.5
+          penalty: 0
+        - min: 2.5
+          max: 4.0
+          penalty: -0.5
+        - min: 4.0
+          max: 6.0
+          penalty: -1.0
+        - min: 6.0
+          max: null
+          penalty: -1.5
+
+gates:
+  evaluation_order:
+    - G_OVERSOLD_BOUNCE
+    - G_OVERBOUGHT_CHASE
+    - G_TIMEFRAME_CONFLICT
+    - G_HIGH_VOL
+    - G_LOW_PARTICIPATION
+
+  definitions:
+    G_OVERSOLD_BOUNCE:
+      description: "Avoid aggressive REDUCE into exhaustion unless strong aligned downtrend."
+      trigger_when: "rsi_14_zone == 'OVERSOLD' or stoch_k_zone == 'OVERSOLD'"
+      effects:
+        force_action: null
+        disallow_actions: ["REDUCE"]
+        confidence_cap_delta: -15
+        add_conflicts: ["OVERSOLD_BOUNCE_RISK"]
+      exceptions:
+        allow_action_when:
+          action: "REDUCE"
+          when: "regime_1D == 'BEAR' and regime_1W == 'BEAR' and adx_14_zone in ['STRONG','EXTREME']"
+
+    G_OVERBOUGHT_CHASE:
+      description: "Avoid chasing; force WAIT when overbought."
+      trigger_when: "rsi_14_zone == 'OVERBOUGHT' or stoch_k_zone == 'OVERBOUGHT'"
+      effects:
+        force_action: "WAIT"
+        disallow_actions: []
+        confidence_cap_delta: -10
+        add_conflicts: ["OVERBOUGHT_PULLBACK_RISK"]
+
+    G_TIMEFRAME_CONFLICT:
+      description: "Daily vs weekly regime conflict reduces reliability."
+      trigger_when: "regime_1D != regime_1W and regime_1W != 'NEUTRAL'"
+      effects:
+        force_action: "WAIT"
+        disallow_actions: []
+        confidence_cap_delta: -15
+        add_conflicts: ["TIMEFRAME_CONFLICT"]
+
+    G_HIGH_VOL:
+      description: "High ATR% caps confidence and biases toward WAIT."
+      trigger_when: "atr_pct_zone in ['HIGH','EXTREME']"
+      effects:
+        force_action: null
+        disallow_actions: []
+        confidence_cap_delta: -15
+        add_conflicts: ["HIGH_VOLATILITY"]
+
+    G_LOW_PARTICIPATION:
+      description: "Falling VROC reduces conviction."
+      trigger_when: "vroc_14_zone == 'FALLING'"
+      effects:
+        force_action: null
+        disallow_actions: []
+        confidence_cap_delta: -10
+        add_conflicts: ["LOW_PARTICIPATION"]
+
+actions:
+  profiles:
+    swing:
+      description: "Swing monitoring: weekly governs daily; action = ACCUMULATE/WAIT/REDUCE."
+      timeframes:
+        primary: "1D"
+        governor: "1W"
+      score_bands:
+        - min: 6.0
+          max: null
+          action: "ACCUMULATE"
+          base_confidence: 75
+        - min: -6.0
+          max: 6.0
+          action: "WAIT"
+          base_confidence: 60
+        - min: null
+          max: -6.0
+          action: "REDUCE"
+          base_confidence: 75
+      governor_rules:
+        - name: weekly_bull_blocks_reduce
+          when: "regime_1W == 'BULL' and score_final > -10"
+          disallow_actions: ["REDUCE"]
+          confidence_cap_delta: -10
+        - name: weekly_bear_blocks_accumulate
+          when: "regime_1W == 'BEAR' and score_final < 10"
+          disallow_actions: ["ACCUMULATE"]
+          confidence_cap_delta: -10
+
+output:
+  decision_trace_required_fields:
+    - policy_id
+    - policy_version
+    - ticker
+    - profile
+    - timestamp
+    - inputs_used
+    - zones
+    - derived_features
+    - regime_1D
+    - regime_1W
+    - score_components
+    - multipliers
+    - penalties
+    - score_raw
+    - score_final
+    - base_action
+    - governor_applied
+    - gates_triggered
+    - action_final
+    - confidence_base
+    - confidence_cap
+    - conflicts
+    - watch_conditions

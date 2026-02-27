@@ -1,0 +1,48 @@
+# VCS / IDE
+.git
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local runtime/config secrets
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Local caches and generated artifacts
+.cache/
+*.log
+*.tmp
+
+# Personal/local data stores (do not commit holdings)
+app/core/portfolio/portfolio.json
+app/core/portfolio/portfolio.json.tmp
+
+# Build/dist
+build/
+dist/
+*.egg-info/
+
+# Tooling
+.ruff_cache/
+.pyre/
+.hypothesis/
+
