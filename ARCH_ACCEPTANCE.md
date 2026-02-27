@@ -12,6 +12,7 @@ This document defines the **non-negotiable architecture principles** and the **a
 * **DRL** = Deterministic Reconciliation Layer. The **only decider** of action + confidence.
 * **Hub Card** = LLM-generated explanation. **Non-decider**. Must be grounded and schema-valid.
 * **Context Pack** = deterministic bundle of prices + indicators + DRL result + optional hub card + data_quality.
+* **Query Graph API / Prewarm Worker** = performance layers for fetch/cache/serving. **Non-decider**.
 
 Internal DRL actions:
 
@@ -126,11 +127,13 @@ UI display labels (view-only mapping):
 
 **UI does not decide. UI displays.**
 
-1. UI selects ticker
-2. Context Pack builder fetches prices (cached) + computes indicators
+1. UI or Graph API request selects ticker/scope
+2. Context Pack builder fetches prices (live/cache/prewarm artifacts) + computes indicators
 3. DRL evaluates → action/confidence + trace
 4. Hub Card (optional) explains the DRL result (cannot override it)
 5. UI ViewModels map DRL action to BUY/HOLD/SELL for display only
+
+Query Graph and prewarm improve latency only; they are not allowed to alter DRL semantics.
 
 ---
 
@@ -155,6 +158,8 @@ Build command intent:
 Optional but recommended before releases:
 
 * `python3 scripts/replay_check.py --ticker <TICKER> --latest`
+* `make hub-verify` (optional deterministic Hub integrity verifier)
+* `make llm-smoke` (optional live Bedrock connectivity smoke check)
 
 ---
 

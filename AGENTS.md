@@ -56,10 +56,15 @@ If editing UI:
 
 ---
 
-## Phase plan
+## Current Platform Scope
 
-PHASE 1: DRL engine + fixtures + tests ONLY.
-Exit criteria: pytest passes; all 12 fixtures pass deterministically.
+This repository currently includes:
+
+* Streamlit UI (`The Pulse`, `The Brain`, `The Horizon`)
+* Graph API query layer (short/long query contracts)
+* Background prewarm worker + cache pipeline
+
+All of these are **transport/performance layers only** and must preserve DRL as the sole action/confidence decider.
 
 ---
 
@@ -84,3 +89,10 @@ Exit criteria: pytest passes; all 12 fixtures pass deterministically.
 * adding paid data deps
 * introducing a database
 * letting LLM pick BUY/SELL/HOLD
+
+---
+
+## Optional local verification commands
+
+* `make llm-smoke` (optional live Bedrock reachability check; not part of `make green`)
+* `make hub-verify` (optional deterministic Hub integrity check; not part of `make green`)
